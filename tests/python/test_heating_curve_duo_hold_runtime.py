@@ -56,7 +56,8 @@ struct Harness {
   bool tick(uint32_t now_ms) {
     // ELIGIBILITY_BLOCK
     const int single_owner=1, previous_hp1=8, previous_hp2=8;
-    const float owner_capacity_w=10000, duo_floor_w=3000;
+    const bool single_saturated=true;
+    const float duo_floor_w=3000;
     const float dispatch_u=disable ? 0.4f : 1.0f;
     const float temperature_error_c=emergency ? 4.0f : (disable ? -1.0f : 1.0f);
     const Available hp1_candidate, hp2_candidate;

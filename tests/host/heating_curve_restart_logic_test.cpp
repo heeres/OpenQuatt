@@ -49,6 +49,23 @@ void test_reset_and_power_cap() {
   assert(power_capped_demand_u(6.0f, 8, 20) == 0.3f && power_capped_demand_u(18.0f, 0, 20) == 0);
   assert(power_capped_demand_u(NAN, 8, 20) == 0 && power_capped_demand_u(INFINITY, 8, 20) == 0);
 }
+void test_duo_maintain_keeps_pid_demand_below_target() {
+  auto in = input();
+  in.pid_output = 0.6f;
+  in.room_c = 20.0f;
+  in.room_data_fresh = true;
+  in.supply_c = in.supply_target_c - 0.15f;
+  assert(decide_demand(in, tuning(), active(2)).demand == 3);
+  in.duo_running = true;
+  auto out = decide_demand(in, tuning(), active(2));
+  assert(out.next.regime_code == 2 && out.demand == 12 && out.demand_continuous == 12.0f);
+  in.supply_c = in.supply_target_c;
+  assert(decide_demand(in, tuning(), active(2)).demand == 8);
+  in.supply_c = in.supply_target_c + 0.35f;
+  assert(decide_demand(in, tuning(), active(2)).demand == 6);
+  in.supply_c = in.supply_target_c + 1.0f;
+  assert(decide_demand(in, tuning(), active(2)).demand == 1);
+}
 void test_capped_demand_rundown() {
   int previous_capped = 0;
   // A stable electrical cap must not keep restarting the Duo enable hold.
@@ -226,6 +243,7 @@ void test_outside_filter_target_and_cadence_rollover() {
 int main() {
   test_restart_matrix();
   test_reset_and_power_cap();
+  test_duo_maintain_keeps_pid_demand_below_target();
   test_capped_demand_rundown();
   test_oil_return_hold_and_rollover();
   test_invalid_inputs_fail_closed();

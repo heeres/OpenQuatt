@@ -75,6 +75,7 @@ struct DemandInput {
   bool oil_return_mask_active = false;
   int applied_total_level = 0;
   int demand_max = 0;
+  bool duo_running = false;
 };
 struct DemandDecision {
   DemandState next;
@@ -375,8 +376,11 @@ inline DemandDecision decide_demand(const DemandInput& in, const ControlProfileT
     } else {
       static constexpr float thresholds[] = {0.00f, 0.10f, 0.20f, 0.35f, 0.50f, 0.70f, 0.90f};
       static constexpr int caps[] = {1, 2, 3, 4, 5, 6, 8};
+      // A load that needs both HPs must keep its PID demand below target. Shifting the table leaves the full cap
+      // range for overshoot, so the second HP is only shed once supply stays at target for the disable hold.
+      const float cap_error_c = in.duo_running ? supply_error_c + thresholds[6] : supply_error_c;
       for (int i = 0; i < 7; ++i)
-        if (supply_error_c <= thresholds[i]) {
+        if (cap_error_c <= thresholds[i]) {
           demand = std::min(demand, caps[i]);
           break;
         }

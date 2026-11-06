@@ -154,6 +154,10 @@ is input voor supervisory, geen directe ketel- of HP-write.
 5. De dispatcher kiest frequentietoegestane levels met het actuele
    vermogensmodel. Bij Duo wordt eerst één HP benut; de tweede volgt pas als
    single-capaciteit en aanvoerafwijking dat onder de hysterese rechtvaardigen.
+   In `RECOVERY` is het vermogensdoel eerst afgeleid van één HP; zodra die
+   verzadigd is of beide HP's draaien, geldt de Duo-capaciteit. Draaien beide
+   HP's in `MAINTAIN`, dan begrenst de nabijheid van het doel de vraag pas vanaf
+   het doel, zodat een last boven één HP de tweede unit niet laat afvallen.
    Levelwijzigingen en topologiewissels worden begrensd.
 
 Interpolatievoorbeeld: tussen 35 °C aanvoer bij 0 °C buiten en 32,5 °C bij

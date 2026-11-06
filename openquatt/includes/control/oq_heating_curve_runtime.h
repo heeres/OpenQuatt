@@ -79,6 +79,10 @@ class Runtime {
                                    || id(hp2_last_applied_level) > 0
 #endif
         ;
+    bool duo_running = false;
+#if OQ_TOPOLOGY_DUO
+    duo_running = id(hp1_last_applied_level) > 0 && id(hp2_last_applied_level) > 0;
+#endif
     const auto intent =
         oq_heat_intent_runtime::evaluate(now_ms, compressor_active, tuning.room_resume_heat_c, 0,
                                          ot_room_temperature_fresh, ot_room_setpoint_fresh, this->intent_state_);
@@ -91,9 +95,10 @@ class Runtime {
       previous.regime_code = 0;
       this->setpoint_started_request_ = false;
     }
-    const auto demand = oq_curve::decide_demand({now_ms, pid_output, target_c, supply_c, room_c, room_setpoint_c,
-                                                 room_data_fresh, oil_return.mask_active, applied_total, demand_max_f},
-                                                tuning, previous);
+    const auto demand =
+        oq_curve::decide_demand({now_ms, pid_output, target_c, supply_c, room_c, room_setpoint_c, room_data_fresh,
+                                 oil_return.mask_active, applied_total, demand_max_f, duo_running},
+                                tuning, previous);
     namespace stop = esphome::openquatt_decision_log::heating_stop;
     if (stop::begin_capture(this->stop_snapshot_, now_ms,
                             stop::curve_demand_reason(demand.valid, static_cast<uint8_t>(demand.stop_reason)),
@@ -441,15 +446,28 @@ class Runtime {
         duo_floor_w = std::fmin(duo_floor_w, item.power_w);  // fmin ignores the initial NAN
       }
 
-    const float target_power_w =
+    float target_power_w =
         demand_active ? oq_curve::phase_target_power_w(heat_phase, demand_u, owner_capacity_w, duo_capacity_w) : 0.0f;
-    oq_curve::DispatchCandidate best_single;
-    if (demand_active)
-      for (int level = 1; level <= owner_max; ++level) {
-        const auto item = candidate(single_owner == 1 ? level : 0, single_owner == 2 ? level : 0, target_power_w);
-        if (oq_curve::better_dispatch_candidate(item, best_single, previous_hp1, previous_hp2, true))
-          best_single = item;
-      }
+    const auto pick_single = [&](float power_w) {
+      oq_curve::DispatchCandidate best;
+      if (demand_active)
+        for (int level = 1; level <= owner_max; ++level) {
+          const auto item = candidate(single_owner == 1 ? level : 0, single_owner == 2 ? level : 0, power_w);
+          if (oq_curve::better_dispatch_candidate(item, best, previous_hp1, previous_hp2, true)) best = item;
+        }
+      return best;
+    };
+    auto best_single = pick_single(target_power_w);
+    const bool owner_fixed = (single_owner == 1 ? hp1_fixed_level : hp2_fixed_level) > 0;
+    const bool single_saturated = best_single.valid && owner_capacity_w > 0.0f &&
+                                  (owner_fixed || best_single.power_w >= 0.90f * owner_capacity_w);
+    // A target scaled to one HP is always reachable by that HP, so it can never show that Duo is better. Recovery
+    // first ramps the owner, then asks for Duo capacity once the owner is saturated or both HPs already run. A held
+    // owner keeps its own scale: its fixed level already exposes the shortfall.
+    if (heat_phase && ((single_saturated && !owner_fixed) || (previous_hp1 > 0 && previous_hp2 > 0))) {
+      target_power_w = oq_curve::phase_target_power_w(false, demand_u, owner_capacity_w, duo_capacity_w);
+      best_single = pick_single(target_power_w);
+    }
     oq_curve::DispatchCandidate best_duo;
     if (demand_active)
       for (int first = 1; first <= hp1_pair_max; ++first)
@@ -467,9 +485,6 @@ class Runtime {
     constexpr float duo_disable_margin_w = 250.0f;
     const float duo_enable_min_u = heat_phase ? 0.90f : 0.80f;
     const float duo_disable_max_u = heat_phase ? 0.70f : 0.55f;
-    const bool owner_fixed = (single_owner == 1 ? hp1_fixed_level : hp2_fixed_level) > 0;
-    const bool single_saturated = best_single.valid && owner_capacity_w > 0.0f &&
-                                  (owner_fixed || best_single.power_w >= 0.90f * owner_capacity_w);
     const bool duo_better =
         best_duo.valid && best_single.valid && best_duo.error_w + duo_enable_margin_w < best_single.error_w;
     const bool single_sufficient =

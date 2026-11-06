@@ -198,6 +198,8 @@ Praktisch:
 - OpenQuatt begint normaal met één warmtepomp;
 - de tweede unit komt pas bij als de vraag hoog genoeg en lang genoeg aanwezig blijft;
 - loopt de draaiende warmtepomp nog op, dan komt de tweede unit pas bij zodra die warmtepomp volgens het prestatiemodel minstens zoveel levert als de kleinste Duo-combinatie; zo springt de tweede unit niet bij om kort daarna weer te stoppen. Kan de draaiende warmtepomp niet verder oplopen, bijvoorbeeld door `Silent max frequency`, een actieve storing of ontdooien, dan geldt deze wachttijd niet;
+- is één warmtepomp tijdens het inlopen van een aanvoertekort verzadigd, dan telt de capaciteit van beide units mee, zodat de tweede unit ook daadwerkelijk bijkomt;
+- draaien beide units, dan valt de tweede pas weer af als de aanvoer de hele `Dual HP Disable Hold` op of boven het doel blijft bij lage vraag;
 - er zit dus bewust wachttijd en hysterese in.
 
 Dat voorkomt onrustig schakelen tussen één en twee warmtepompen.
